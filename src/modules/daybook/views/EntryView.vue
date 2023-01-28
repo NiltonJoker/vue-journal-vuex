@@ -1,39 +1,155 @@
 <template class="entry-title">
-  <div class="entry-title d-flex justify-content-between p-2">
-    <div class="">
-      <span class="text-success fs-3 fw-bold">15</span>
-      <span class="mx-1 fs-3">Enero</span>
-      <span class="mx-2 fs-4 fw-light">2023, domingo</span>
+  <template v-if="entry">
+    <div class="entry-title d-flex justify-content-between p-2">
+      <div class="">
+        <span class="text-success fs-3 fw-bold">{{ day }}</span>
+        <span class="mx-1 fs-3">{{ month }}</span>
+        <span class="mx-2 fs-4 fw-light">{{ yearDay }}</span>
+      </div>
+
+      <div class="">
+        <button
+          class="btn btn-danger mx-2"
+          v-if="entry.id"
+          @click="onDeleteEntry"
+        >
+          Borrar
+          <i class="fa fa-trash-alt"></i>
+        </button>
+        <button class="btn btn-primary">
+          Subit foto
+          <i class="fa fa-upload"></i>
+        </button>
+      </div>
     </div>
 
-    <div class="">
-      <button class="btn btn-danger mx-2">
-        Borrar
-        <i class="fa fa-trash-alt"></i>
-      </button>
-      <button class="btn btn-primary">
-        Subit foto
-        <i class="fa fa-upload"></i>
-      </button>
+    <hr />
+
+    <div class="d-flex flex-column px-3 h-75">
+      <textarea placeholder="Que sucedio hoy ?" v-model="entry.text"></textarea>
     </div>
-  </div>
+  </template>
 
-  <hr />
+  <FaButton icon="fa-save" @on:click="saveEntry" />
 
-  <div class="d-flex flex-column px-3 h-75">
-    <textarea placeholder="Que sucedio hoy ?"></textarea>
-  </div>
-
-  <FaButton icon="fa-save" />
-
-  <img src="https://preview.redd.it/new-resident-evil-4-remake-photo-v0-ib5ru2n2us1a1.jpg?auto=webp&s=4f89b0884bce752c2faebbf28c5c68c170072636" class="img-thumbnail" alt="entry-picture">
+  <img
+    src="https://preview.redd.it/new-resident-evil-4-remake-photo-v0-ib5ru2n2us1a1.jpg?auto=webp&s=4f89b0884bce752c2faebbf28c5c68c170072636"
+    class="img-thumbnail"
+    alt="entry-picture"
+  />
 </template>
 
 <script>
 import { defineAsyncComponent } from "vue";
+import { mapActions, mapGetters } from "vuex";
+import Swal from "sweetalert2";
+import getDayMonthYear from "../helpers/getDayMonthYear";
+
 export default {
+  props: {
+    id: {
+      type: String,
+      required: true,
+    },
+  },
   components: {
-    FaButton: defineAsyncComponent(() => import("@/modules/daybook/components/FaButton.vue")),
+    FaButton: defineAsyncComponent(() =>
+      import("@/modules/daybook/components/FaButton.vue")
+    ),
+  },
+  data() {
+    return {
+      entry: null,
+    };
+  },
+  computed: {
+    ...mapGetters("journal", ["getEntryById"]),
+    day() {
+      const { day } = getDayMonthYear(this.entry.date);
+      return day;
+    },
+    month() {
+      const { month } = getDayMonthYear(this.entry.date);
+      return month;
+    },
+    yearDay() {
+      const { yearDay } = getDayMonthYear(this.entry.date);
+      return yearDay;
+    },
+  },
+  methods: {
+    ...mapActions("journal", ["createEntry", "updateEntry", "deleteEntry"]),
+    async saveEntry() {
+      new Swal({
+        title: "Espere por favor",
+        allowOutsideClick: false,
+      });
+
+      Swal.showLoading();
+
+      if (this.entry.id) {
+        await this.updateEntry(this.entry);
+      } else {
+        const id = await this.createEntry(this.entry);
+
+        this.$router.push({
+          name: "entry",
+          params: { id },
+        });
+      }
+
+      Swal.fire("Guardado", "Entrada registrada con exito", "success");
+    },
+    loadEntry() {
+      let entry;
+
+      if (this.id === "new") {
+        entry = {
+          text: "",
+          date: new Date().getTime(),
+        };
+      } else {
+        entry = this.getEntryById(this.id);
+
+        if (!entry) return this.$router.push({ name: "no-entry" });
+      }
+
+      this.entry = entry;
+    },
+    async onDeleteEntry() {
+      const { isConfirmed } = await Swal.fire({
+        title: "Estas seguro?",
+        text: "Una vez borrado no se puede recuperar",
+        showDenyButton: true,
+        confirmButtonText: "Si, estoy seguro",
+      });
+
+      if (!isConfirmed) return;
+
+      new Swal({
+        title: "Espere por favor",
+        allowOutsideClick: false,
+      });
+
+      Swal.isLoading();
+
+      await this.deleteEntry(this.entry.id);
+
+      this.$router.push({
+        name: "no-entry",
+      });
+
+      Swal.fire("Eliminado", "", "success");
+    },
+  },
+  created() {
+    this.loadEntry();
+  },
+
+  watch: {
+    id() {
+      this.loadEntry();
+    },
   },
 };
 </script>
@@ -44,7 +160,7 @@ textarea {
   border: none;
   height: 100%;
 
-  &:focus{
+  &:focus {
     outline: none;
   }
 }
